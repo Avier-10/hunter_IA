@@ -5,7 +5,7 @@ public class Trap : MonoBehaviour
 {
     [Header("Trap")]
     [SerializeField] private float _trapDuration = 2f;
-    [SerializeField] private float _trapDamage = 999f;
+    [SerializeField] private float _trapDamage = FSMAgentEscapist.LethalDamage;
 
     private FSMAgentEscapist _currentEscapist;
     private float _trapTimer;
@@ -13,8 +13,15 @@ public class Trap : MonoBehaviour
     public bool IsOccupied => _currentEscapist != null;
     public FSMAgentEscapist CurrentEscapist => _currentEscapist;
 
-    public static List<Trap> AllObjects { get; private set; }
+    public static List<Trap> AllObjects { get; }
         = new List<Trap>();
+
+    // Domain reload may be disabled, so statics must be cleared explicitly.
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStatics()
+    {
+        AllObjects.Clear();
+    }
 
     private void Awake()
     {
@@ -34,10 +41,6 @@ public class Trap : MonoBehaviour
         _currentEscapist = escapist;
         _trapTimer = _trapDuration;
 
-        Debug.Log(
-            $"{escapist.name} quedó atrapada durante {_trapDuration} segundos."
-        );
-
         return true;
     }
 
@@ -45,8 +48,6 @@ public class Trap : MonoBehaviour
     {
         if (_currentEscapist != escapist)
             return;
-
-        Debug.Log($"{escapist.name} liberó la trampa.");
 
         _currentEscapist = null;
         _trapTimer = 0f;
@@ -73,12 +74,8 @@ public class Trap : MonoBehaviour
 
             _currentEscapist = null;
 
-            Debug.Log($"{escapist.name} fue atrapada por la trampa.");
-
             escapist.TakeDamage(_trapDamage);
         }
-
-        Debug.Log($"{name} fue consumida.");
 
         Destroy(gameObject);
     }

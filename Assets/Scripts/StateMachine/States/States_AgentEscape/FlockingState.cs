@@ -11,9 +11,6 @@ public class FlockingState : SteeringState
         _data = data;
     }
 
-    public override void Enter() {}
-    public override void Exit()  {}
-
     public override void Update()
     {
         Vector3 steering = CalculateSeparation() * _data.separationWeight

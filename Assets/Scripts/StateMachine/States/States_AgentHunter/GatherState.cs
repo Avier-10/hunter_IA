@@ -1,96 +1,84 @@
 using UnityEngine;
 
-public class GatherState : SteeringState
+// Walks to an eliminated boid, collects it for a fixed time and counts it. Abandoning counts nothing.
+public class GatherState : HunterState
 {
-    private FSMAgentHunter _hunter;
-    private GatherData _data;
+    private readonly GatherData _data;
+
     private FSMAgentEscapist _target;
-    
-    
     private float _gatherTimer;
     private bool _isCollecting;
 
     public GatherState(FSMAgentHunter agent, GatherData data, StateMachine stateMachine)
         : base(agent, stateMachine)
     {
-        _hunter = agent;
         _data = data;
     }
 
-    public override void Enter()
+    protected override void OnEnter()
     {
-        _target = _hunter.FindNearestEliminatedBoid(
-            _data.perceptionRadius
-        );
-
+        _target = Hunter.Boids.NearestEliminated;
         _isCollecting = false;
         _gatherTimer = 0f;
-        Debug.Log("Hunter: ENTRE GATHER");
+        Hunter.SetFocus(_target != null ? _target.transform : null);
     }
 
-    public override void Exit() => Debug.Log("Hunter: SALGO GATHER");
+    protected override void OnExit()
+    {
+        // Leaving mid-collection (Flee, Dead) simply drops the progress.
+        _target = null;
+        _isCollecting = false;
+    }
 
     public override void Update()
     {
+        if (TryGlobalTransitions(HunterTransitions.Flee)) return;
+
         if (_target == null || !_target.IsEliminated)
         {
-            _hunter.ChangeState(HunterStates.Patrol);
+            Hunter.ChangeState(HunterStates.Search);
             return;
         }
 
-        if (!_isCollecting)
-            MoveToTarget();
-        else
+        if (_isCollecting)
             RunCollection();
-       
+        else
+            MoveToTarget();
     }
 
     private void MoveToTarget()
     {
-        float distance = Vector3.Distance(_agent.transform.position, _target.transform.position);
+        Vector3 targetPosition = _target.transform.position;
 
-        if (distance <= _data.arriveThreshold)
+        if (IsWithin(targetPosition, _data.arriveThreshold))
         {
             _isCollecting = true;
             _gatherTimer = _data.gatherDuration;
-
-            _agent.ApplyVelocity(Vector3.zero, 0f);
+            Stop();
             return;
         }
 
-        Vector3 steering = Seek(_target.transform.position, _data.maxSpeed, _data.maxSteering);
-       
-        _agent.ApplyVelocity(steering, _data.maxSpeed);
+        MoveTo(targetPosition, _data.maxSpeed);
     }
 
     private void RunCollection()
     {
+        Stop();
+
         _gatherTimer -= Time.deltaTime;
+        if (_gatherTimer > 0f) return;
 
-        if (_gatherTimer <= 0f)
-        {
-            _target.Collectible();
+        _target.Collect();
+        Hunter.AddGather();
 
-            Debug.Log("Hunter: Boid recolectado");
-
-            _hunter.ChangeState(HunterStates.Patrol);
-        }
-    }
-
-    private Vector3 Seek(Vector3 target, float maxSpeed, float maxSteering)
-    {
-        var desired = DesiredVector(target, maxSpeed);
-
-        return CalculateSteering(desired, maxSteering);
+        ResumeAfterTask();
     }
 }
 
 [System.Serializable]
 public class GatherData
 {
-    public float maxSpeed = 3f;
-    public float maxSteering = 4f;
+    public float maxSpeed = 5f;
     public float gatherDuration = 1.5f;
     public float arriveThreshold = 0.5f;
-    public float perceptionRadius = 8f;
 }

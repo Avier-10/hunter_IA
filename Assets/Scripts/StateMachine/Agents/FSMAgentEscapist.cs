@@ -1,5 +1,6 @@
 using System.Collections;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 public enum EscapistStates
 {
@@ -11,6 +12,9 @@ public enum EscapistStates
 
 public class FSMAgentEscapist : Agent
 {
+    // Damage that kills any boid in one hit (bullet, melee, trap).
+    public const float LethalDamage = 999f;
+
     [Header("Data")]
     [SerializeField] private FlockingData dataFlocking;
     [SerializeField] private EvadeData dataEvade;
@@ -21,30 +25,41 @@ public class FSMAgentEscapist : Agent
     [SerializeField] private float _visionRadiusEnter = 5f;
     [SerializeField] private float _visionRadiusExit = 7f;
 
-    [Header("Vida")]
-    [SerializeField] private float _vidaMaxima = 3f;
+    [Header("Health")]
+    [FormerlySerializedAs("_vidaMaxima")]
+    [SerializeField] private float _maxHealth = 3f;
 
-    private float _vida;
+    [Header("Traps")]
+    [Tooltip("Radius within which a flocking boid is attracted to a free trap.")]
+    [SerializeField] private float _trapDetectionRadius = 8f;
+
+    [Header("Respawn")]
+    [Tooltip("Seconds a collected boid stays hidden before respawning in the Coto.")]
+    [SerializeField] private float _respawnDelay = 3f;
+
+    private float _health;
     private bool _isCollected;
 
     private StateMachine _stateMachine;
     private AttractedState _attractedState;
 
-    private Renderer[] _renderers;
-    private Color[] _originalColors;
+    private GameObject _remains;
 
-    public bool IsEliminated => _vida <= 0f && !_isCollected;
+    public bool IsEliminated => _health <= 0f && !_isCollected;
     public bool IsCollected => _isCollected;
-    public bool IsAlive => _vida > 0f && !_isCollected;
+    public bool IsAlive => _health > 0f && !_isCollected;
+
+    // Read by BoidGizmos to draw the perception radii.
+    public FlockingData Flocking => dataFlocking;
+    public float VisionRadiusEnter => _visionRadiusEnter;
+    public float VisionRadiusExit => _visionRadiusExit;
 
 
     protected override void Awake()
     {
         base.Awake();
 
-        InitializeVisuals();
-
-        _vida = _vidaMaxima;
+        _health = _maxHealth;
         _stateMachine = new StateMachine();
 
         InitializeMovement();
@@ -68,7 +83,7 @@ public class FSMAgentEscapist : Agent
             return;
 
         if (!IsEliminated) CheckEnvironment();
-            
+
         _stateMachine.Update();
     }
 
@@ -102,7 +117,7 @@ public class FSMAgentEscapist : Agent
 
         if (inFlocking)
         {
-            Trap nearestInterest = FindNearestObject(8f);
+            Trap nearestInterest = FindNearestObject(_trapDetectionRadius);
 
             if (nearestInterest != null)
                 ChangeToAttracted(nearestInterest);
@@ -148,11 +163,11 @@ public class FSMAgentEscapist : Agent
         if (IsEliminated)
             return;
 
-        _vida -= amount;
+        _health -= amount;
 
-        if (_vida <= 0f)
+        if (_health <= 0f)
         {
-            _vida = 0f;
+            _health = 0f;
             _velocity = Vector3.zero;
 
             _stateMachine.ChangeState(EscapistStates.Death);
@@ -161,14 +176,15 @@ public class FSMAgentEscapist : Agent
 
     public void ResetHealth()
     {
-        _vida = _vidaMaxima;
+        _health = _maxHealth;
     }
 
 
-    public void Collectible()
+    public void Collect()
     {
         _isCollected = true;
 
+        ClearRemains();
         SetVisible(false);
 
         StartCoroutine(RespawnAfterCollection());
@@ -176,21 +192,29 @@ public class FSMAgentEscapist : Agent
 
     private IEnumerator RespawnAfterCollection()
     {
-        yield return new WaitForSeconds(3f);
+        yield return new WaitForSeconds(_respawnDelay);
 
-        Vector2 randomCircle = Random.insideUnitCircle * 20f;
-
-        transform.position = new Vector3(randomCircle.x, transform.position.y, randomCircle.y);
-
-        ResetHealth();
-        InitializeMovement();
+        RespawnInCoto();
 
         _isCollected = false;
 
         SetVisible(true);
-        RestoreColor();
 
         ChangeState(EscapistStates.Flocking);
+    }
+
+    // Boids only live in the Coto, so every respawn lands on a random point inside that zone.
+    public void RespawnInCoto()
+    {
+        if (Zone.TryGet(ZoneKind.HuntingGround, out Zone coto))
+        {
+            Vector3 point = coto.RandomPoint();
+            point.y = transform.position.y;
+            transform.position = point;
+        }
+
+        ResetHealth();
+        InitializeMovement();
     }
 
 
@@ -199,18 +223,6 @@ public class FSMAgentEscapist : Agent
         Vector3 randomDirection = new Vector3(Random.Range(-1f, 1f), 0f, Random.Range(-1f, 1f));
 
         _velocity = randomDirection.normalized * dataFlocking.maxSpeed;
-    }
-
-    private void InitializeVisuals()
-    {
-        _renderers = GetComponentsInChildren<Renderer>();
-
-        _originalColors = new Color[_renderers.Length];
-
-        for (int i = 0; i < _renderers.Length; i++)
-        {
-            _originalColors[i] = _renderers[i].material.color;
-        }
     }
 
     public void SetVisible(bool visible)
@@ -222,19 +234,20 @@ public class FSMAgentEscapist : Agent
             collider.enabled = visible;
     }
 
-    public void SetDeathColor(Color color)
+    // What is left where the boid fell; the hunter still collects the (hidden) boid at this spot.
+    public void SpawnRemains(GameObject prefab)
     {
-        foreach (Renderer renderer in _renderers)
-        {
-            renderer.material.color = color;
-        }
+        ClearRemains();
+
+        if (prefab == null) return;
+
+        _remains = Instantiate(prefab, transform.position, Quaternion.identity);
     }
 
-    public void RestoreColor()
+    public void ClearRemains()
     {
-        for (int i = 0; i < _renderers.Length; i++)
-        {
-            _renderers[i].material.color = _originalColors[i];
-        }
+        if (_remains != null) Destroy(_remains);
+
+        _remains = null;
     }
 }

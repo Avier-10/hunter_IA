@@ -3,6 +3,11 @@ using TMPro;
 
 public class HunterAmmoUI : MonoBehaviour
 {
+    private const string ReadyIcon = "●";
+    private const string ReloadingIcon = "x";
+    private const string ReadyText = "Bullet ready";
+    private const string ReloadingText = "Reloading";
+
     [SerializeField] private FSMAgentHunter _hunter;
 
     [Header("UI")]
@@ -16,13 +21,13 @@ public class HunterAmmoUI : MonoBehaviour
 
         if (_hunter.HasBullet)
         {
-            _ammoIcon.text = "●";
-            _ammoText.text = "Bala lista";
+            _ammoIcon.text = ReadyIcon;
+            _ammoText.text = ReadyText;
         }
         else
         {
-            _ammoIcon.text = "x";
-            _ammoText.text = "Recargando bala";
+            _ammoIcon.text = ReloadingIcon;
+            _ammoText.text = ReloadingText;
         }
     }
 }

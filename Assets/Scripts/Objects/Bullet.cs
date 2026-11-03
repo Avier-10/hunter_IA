@@ -5,6 +5,8 @@ public class Bullet : MonoBehaviour
     private FSMAgentEscapist _target;
 
     [SerializeField] private float _speed = 15f;
+    [Tooltip("Distance to the target at which the bullet counts as a hit.")]
+    [SerializeField] private float _hitDistance = 0.2f;
 
     public void Initialize(FSMAgentEscapist target)
     {
@@ -24,7 +26,7 @@ public class Bullet : MonoBehaviour
 
         float distance = direction.magnitude;
 
-        if (distance <= 0.2f)
+        if (distance <= _hitDistance)
         {
             HitTarget();
             return;
@@ -38,7 +40,7 @@ public class Bullet : MonoBehaviour
 
     private void HitTarget()
     {
-        _target.TakeDamage(999f);
+        _target.TakeDamage(FSMAgentEscapist.LethalDamage);
 
         Destroy(gameObject);
     }

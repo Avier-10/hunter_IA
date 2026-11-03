@@ -10,29 +10,11 @@ public class EvadeState : SteeringState
         _data = data;
     }
 
-    public override void Enter() {} /*Debug.Log("Entre Evade");*/
-    public override void Exit()  {}/*Debug.Log("Sali Evade");*/
-
     public override void Update()
     {
-        Vector3 steering = Evade(_data.Hunter, _data.maxSpeed);
+        Vector3 steering = Evade(_data.Hunter, _data.maxSpeed, _data.maxSteering);
 
         _agent.ApplyVelocity(steering, _data.maxSpeed);
-    }
-
-    
-    private Vector3 Evade(Agent target, float maxSpeed)
-    {
-        var futurePosition = CalculateFuture(target, maxSpeed);
-
-        return Flee(futurePosition, _data.maxSpeed, _data.maxSteering);
-    }
-
-    private Vector3 Flee(Vector3 target, float maxSpeed, float maxSteering)
-    {
-        var desired = DesiredVector(target, maxSpeed);
-
-        return CalculateSteering(-desired, maxSteering);
     }
 }
 

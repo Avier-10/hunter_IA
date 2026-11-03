@@ -4,6 +4,7 @@ public class DeathState : State
 {
     private FSMAgentEscapist _agent;
     private DeathData _data;
+    private Coroutine _expiry;
 
     public DeathState(FSMAgentEscapist agent, DeathData data, StateMachine stateMachine)
         : base(stateMachine)
@@ -14,37 +15,32 @@ public class DeathState : State
 
     public override void Enter()
     {
-        _agent.SetDeathColor(_data.deathColor);
-
         _agent.SetVisible(false);
+        _agent.SpawnRemains(_data.remainsPrefab);
 
-        _agent.StartCoroutine(RespawnDelay());
-
-        Debug.Log("Escapist: Entre Death");
+        _expiry = _agent.StartCoroutine(ExpireIfUncollected());
     }
 
     public override void Exit()
     {
-        _agent.RestoreColor();
-        _agent.SetVisible(true);
+        if (_expiry != null) _agent.StopCoroutine(_expiry);
+        _expiry = null;
 
-        Debug.Log("Escapist: Sali Death");
+        _agent.ClearRemains();
+        _agent.SetVisible(true);
     }
 
     public override void Update() {}
 
-    private IEnumerator RespawnDelay()
+    // The hunter has to collect it, so it stays dead until then; a boid nobody collects still comes back.
+    private IEnumerator ExpireIfUncollected()
     {
-        yield return new WaitForSeconds(_data.respawnDelay);
+        yield return new WaitForSeconds(_data.uncollectedTimeout);
 
-        Vector2 randomCircle = Random.insideUnitCircle * _data.spawnAreaRadius;
+        // Collected boids respawn through FSMAgentEscapist.Collect instead.
+        if (_agent.IsCollected) yield break;
 
-        _agent.transform.position = new Vector3(randomCircle.x,_agent.transform.position.y,randomCircle.y);
-
-        _agent.ResetHealth();
-
-        _agent.InitializeMovement();
-
+        _agent.RespawnInCoto();
         _agent.ChangeState(EscapistStates.Flocking);
     }
 }
@@ -53,9 +49,10 @@ public class DeathState : State
 public class DeathData
 {
     [Header("Respawn")]
-    public float respawnDelay = 3f;
-    public float spawnAreaRadius = 20f;
+    [Tooltip("Seconds an eliminated boid waits to be collected before coming back on its own.")]
+    public float uncollectedTimeout = 30f;
 
     [Header("Feedback")]
-    public Color deathColor = Color.red;
+    [Tooltip("Left where the boid fell (e.g. a red cube) until it is collected or respawns.")]
+    public GameObject remainsPrefab;
 }

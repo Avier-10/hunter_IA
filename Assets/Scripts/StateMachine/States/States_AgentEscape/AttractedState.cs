@@ -26,8 +26,6 @@ public class AttractedState : SteeringState
     public override void Enter()
     {
         _isOccupied = false;
-
-        Debug.Log("Escapist: Entre Attracted");
     }
 
     public override void Exit()
@@ -37,8 +35,6 @@ public class AttractedState : SteeringState
             _target.Release(_escapist);
             _isOccupied = false;
         }
-
-        Debug.Log("Escapist: Sali Attracted");
     }
 
     public override void Update()
@@ -70,10 +66,6 @@ public class AttractedState : SteeringState
             }
             else
             {
-                Debug.Log(
-                    $"{_escapist.name} intentó ocupar una trampa ocupada."
-                );
-
                 _escapist.ChangeState(EscapistStates.Flocking);
             }
 
@@ -88,30 +80,6 @@ public class AttractedState : SteeringState
         );
 
         _escapist.ApplyVelocity(steering, _data.maxSpeed);
-    }
-
-    private Vector3 Arrive(
-        Vector3 target,
-        float maxSpeed,
-        float maxSteering,
-        float slowingDistance)
-    {
-        Vector3 direction =
-            target - _escapist.transform.position;
-
-        float distance = direction.magnitude;
-
-        if (distance < 0.01f)
-            return -_escapist.Velocity;
-
-        float targetSpeed = maxSpeed * Mathf.Clamp01(distance / slowingDistance);
-
-        Vector3 desired = direction.normalized * targetSpeed;
-
-        return CalculateSteering(
-            desired,
-            maxSteering
-        );
     }
 }
 
